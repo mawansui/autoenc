@@ -1,0 +1,5 @@
+Development plan:
+
+1. Gather all data (mimick shelve)
+2. Write autoencoder
+3. Test autoencoder
