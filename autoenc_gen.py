@@ -68,5 +68,5 @@ def autoencoder_generator(number_of_inputs, inputs_dimensions, first_layer,
 	return model
 
 new_model = autoencoder_generator(number_of_inputs=1, inputs_dimensions=42, first_layer=100, 
-						  scale_factor=2, depth_factor=4, activation="relu", optimizer="adam", 
+						  scale_factor=2, depth_factor=3, activation="relu", optimizer="adam", 
 						  loss="mean_squared_error", metrics=["mse"])

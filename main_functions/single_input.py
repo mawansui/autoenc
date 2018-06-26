@@ -17,14 +17,15 @@ def single_input(input_dimension, first_layer, scale_factor, depth_factor,
 
 	# Первая проверка – если функции активации передали как список, его размер
 	# должен совпадать с количеством вообще в целом необходимых для автоэнкодера
-	# функций активации (depth_facor * 2). Умножение на 2 для того, чтобы 
-	# учесть слои энкодера и декодера.
+	# функций активации ((depth_facor * 2) + 1). Умножение на 2 для того, чтобы 
+	# учесть слои энкодера и декодера. + 1 – учитываем то, что после последнего 
+	# слоя есть ещё output-слой, перед которым тоже нужен слой активации.
 	# Если размерность верная, то всё ок, если нет – выдаст ошибку.
 
-	if isinstance(activation, list) and len(activation) != (depth_factor * 2):
+	if isinstance(activation, list) and len(activation) != ((depth_factor * 2) + 1):
 		error_message = ("Переданный список функций активации не совпадает по "
 						 "размеру с числом скрытых слоёв! Должно быть: {}, по "
-						 "факту: {}".format(depth_factor*2, len(activation)))
+						 "факту: {}".format((depth_factor*2)+1, len(activation)))
 		raise ValueError(error_message)
 
 	# Потом надо проверить, не была ли функция активации (ФА) передана в виде 
@@ -36,7 +37,7 @@ def single_input(input_dimension, first_layer, scale_factor, depth_factor,
 
 	if isinstance(activation, str) and activation in all_available_activation_functions:
 		used_activations.append(activation)
-		used_activations = used_activations * (depth_factor * 2)
+		used_activations = used_activations * ((depth_factor * 2) + 1)
 
 	# Если же это список с нужным размером (уже проверили сверху), 
 	# то просто переназначить его.
@@ -51,12 +52,13 @@ def single_input(input_dimension, first_layer, scale_factor, depth_factor,
 	# Если depth_factor, указанный пользователем, превышает максимально возможный
 	# при его параметрах first_layer и scale_factor, поднять поясняющую ошибку
 	if depth_factor > maximum_possible_depth_factor:
-		df_message_error = ("Указанный depth_factor ({}) не подходит, т.к. ",
-							"максимально возможный фактор глубины – {}.",
-							"Предлагаю увеличить количество нейронов на первом ",
-							"слое автоэнкодера (параметр first_layer), либо ",
+		df_message_error = ("Указанный depth_factor ({}) не подходит, т.к. "
+							"максимально возможный фактор глубины – {}."
+							"Предлагаю увеличить количество нейронов на первом "
+							"слое автоэнкодера (параметр first_layer), либо "
 							"изменить фактор масштабируемости (параметр "
-							"scale_factor)".format(depth_factor, maximum_possible_depth_factor))
+							"scale_factor). Ну или просто уменьшить степень "
+							"глубины автоэнкодера.".format(depth_factor, maximum_possible_depth_factor))
 		raise ValueError(df_message_error)
 
 	# Создаем входной слой. Его размерность равна размерности передаваемых данных.
@@ -93,22 +95,24 @@ def single_input(input_dimension, first_layer, scale_factor, depth_factor,
 
 	# Создаём декодер.
 	connect_to = bottleneck_layer
-	increment_counter = 0
 
 	for i in range(depth_factor+1, (depth_factor*2)):
 		hidden_layer = Dense(layer_sizes[i], activation=used_activations[i])(connect_to)
 		connect_to = hidden_layer
 
 	# Отдельно создаём последний слой
-	last_layer = Dense(first_layer, activation=used_activations[(depth_factor*2)-1])(connect_to)
+	last_layer = Dense(first_layer, activation=used_activations[(depth_factor*2)])(connect_to)
+
+	# Наконец, создаём выходной слой, который по размеру такой же, как входные данные
+	output_layer = Dense(input_dimension)(last_layer)
 
 	# Создаём модель автоэнкодера
-	model = Model(inputs=input_layer, outputs=last_layer)
+	model = Model(inputs=input_layer, outputs=output_layer)
 
 	# Компилируем модель автоэнкодера
 	model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
-	# Рисуем картинку со схемой нового автоэнкодера
+	# Рисуем картинку со схемой нового автоэнкодера – сделать опционально?
 	# plot_model(model, to_file="autoencoder_scheme.png", show_shapes=True)
 
 	# Выводим в консоль информацию о модели
