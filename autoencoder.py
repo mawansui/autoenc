@@ -1,97 +1,77 @@
-import pickle
-import numpy as np
-from keras.models import Model
-from keras.layers import Input, Dense, Activation, Add, Concatenate
-from keras.utils import plot_model
+from main_functions.single_input import single_input
+from main_functions.double_inputs import double_inputs
 
-# 1. Multiple Inputs (Reference: https://keras.io/layers/merge/)
-# 2. Dense Hidden Layers (Reference: https://keras.io/getting-started/functional-api-guide/)
-# 3. Multiple Outputs (Мб не надо? Reference: https://stackoverflow.com/questions/44036971/multiple-outputs-in-keras)
-# 4. Prediction Quality Assesement (https://habr.com/company/econtenta/blog/303458/)
+def autoencoder_generator(number_of_inputs, inputs_dimensions, first_layer, 
+						  scale_factor, depth_factor, activation, optimizer, 
+						  loss, metrics, **kwargs):
+	# Функция, создающая автоэнкодер по заданным параметрам
+	#
+	# number_of_inputs – сколько в автоэнкодере входов, 1 или 2
+	#
+	# inputs_dimensions – размерность входа (число) или входов, если их 2 (списком)
+	# 				   // слово dimension специально везде написано целиком, чтобы
+	#				   // избежать путаницы со стандартными параметрами нейросетей
+	#				   // в Keras.
+	#
+	# first_layer – число нейронов на первом скрытом слое автоэнкодера
+	#
+	# scale_factor – фактор масштабируемости; во сколько раз каждый следующий
+	# 				 слой будет меньше (энкодер) или больше предыдущего (декодер)
+	#
+	# depth_factor – степень глубины; сколько слоёв будет до и после bottleneck-а
+	#
+	# activation – выбранная функция активации; можно задать автоматически, а
+	# 			   можно очень точно для каждого слоя свою
+	#
+	# **kwargs – это нужно для того, чтобы обработать параметр output_dimension. 
+	#			 Он не нужен, если number_of_inputs = 1, там всё автоматически
+	#			 присваивается – потому что всё и так понятно. 
+	#			 Зато он нужен, если number_of_inputs = 2, потому что надо уто-
+	#			 чнить, какой вход мы хотим отразить на выходе.
+	#		  // Использую **kwargs, чтобы можно было передавать аргумент 
+	#		  // output_dimension не позиционно, а в любом месте по названию.
 
-with open('./data/x_train.pickle', 'rb') as x_train_file, \
-	 open('./data/y_train.pickle', 'rb') as y_train_file, \
-	 open('./data/x_test.pickle', 'rb') as x_test_file, \
-	 open('./data/y_test.pickle', 'rb') as y_test_file:
-	x_train = pickle.load(x_train_file)
-	y_train = pickle.load(y_train_file)
-	x_test = pickle.load(x_test_file)
-	y_test = pickle.load(y_test_file)
+	# Проверка количества входов.
 
-# print("x_train\n\n")
-# print(y_train)
+	# Если у автоэнкодера один вход,
+	if number_of_inputs == 1:
+		# то надо с помощью функции single_input() из другого файла создать
+		# модель автоэнкодера и записать её в переменную model;
+		# в функцию single_input() передаётся всё, что было передано в главную 
+		# функцию (то есть в эту)
+		model = single_input(inputs_dimensions, first_layer, 
+							 scale_factor, depth_factor, activation, optimizer, 
+							 loss, metrics)
+	
+	# Если у автоэнкодера два входа,
+	elif number_of_inputs == 2:
+		# и если в главную функцию (эту) был передан дополнительный параметр
+		# output_dimension, обязательный для создания автоэнкодера с двумя входами,
+		# # а concatenate_axis, если что, необязательный, для его есть дефолтное
+		# # значение
+		if 'output_dimension' in kwargs:
+			# то вытащить из аргументов главной функции значение, переданное в
+			# output_dimension
+			output_dimension = kwargs.get('output_dimension')
+			# заодно извлечь значение оси сложения слоёв, а если его не было, то
+			# передать единицу (дефолтную)
+			concatenate_axis = kwargs.get('concatenate_axis', 1)
+			# и передать это всё вместе со всеми остальными значениями во внешнюю 
+			# функцию double_inputs(), которая создаст модель автоэнкодера с
+			# двумя входами, которую затем запишем в переменную model
+			model = double_inputs(inputs_dimensions, output_dimension, first_layer, 
+								  concatenate_axis, scale_factor, depth_factor, 
+								  activation, optimizer, loss, metrics)
+		
+		# Но если в главную функцию не был передан дополнительный обязательный 
+		# параметр output_dimension, то надо поднять ошибку – без него модель
+		# не создать.
+		else:
+			raise ValueError("Не указана размерность выхода для автоэнкодера "
+							 "с двумя входами!")
+	else:
+		raise ValueError("number_of_inputs может быть только 1 или 2. "
+						 "Передано: {}".format(number_of_inputs))
 
-
-
-# Multiple Inputs
-# fragments_input: подразумевается, что сюда будет передаваться numpy-массив
-# 				   фрагментов реакции
-# 
-# conditions_input: а сюда – numpy-массив условий реакции
-# 
-# Таким образом, общее число нейронов на первом слое – np.shape(x_train[1]) + np.shape(y_train[1])
-fragments_input = Input(shape=(np.shape(x_train[1])))
-conditions_input = Input(shape=(np.shape(y_train[1])))
-
-# NEW: попробуем сложить входы и потом сделать автоэнкодер последовательный
-comdined_input = Concatenate(axis=-1)([fragments_input, conditions_input])
-
-# После каждого входного слоя идёт слой с 64 нейронами - типа скрытые слои
-# hidden_layer_1 = Dense(128, activation="relu")(fragments_input)
-# hidden_layer_2 = Dense(128, activation="relu")(conditions_input)
-
-# Потом складываются скрытые слои в один общий скрытый слой.
-# Причем складывать можно только слои с одинаковым числом нейронов.
-# added_hidden_layers = Add()([hidden_layer_1, hidden_layer_2])
-# Лучше использовать Concatenate – значительно уменьшается функция ошибки
-# и вообще как-то по архитектуре сети правильнее.
-# Ну, я так изначально и хотел короче, Add() что-то я так и не понял, что делает
-added_hidden_layers = Concatenate(axis=-1)([hidden_layer_1, hidden_layer_2]) # !!!!
-
-# Потом просто добавляю скрытых слоёв по вкусу
-more_hidden_layers = Dense(256, activation="relu")(comdined_input)
-more_hidden_layers = Dense(128, activation="relu")(more_hidden_layers)
-more_hidden_layers = Dense(64, activation="relu")(more_hidden_layers)
-more_hidden_layers = Dense(128, activation="relu")(more_hidden_layers)
-more_hidden_layers = Dense(256, activation="relu")(more_hidden_layers)
-
-# Добавляется выходной слой
-# Вот тут чисто для условий (42) нейрона, или прям всё должно восстанавливаться 
-# вместе с фрагментами? 
-output_layer = Dense(42)(more_hidden_layers)
-
-# Создаем модель с заданными выше слоями
-model = Model(inputs=[fragments_input, conditions_input], outputs=output_layer)
-
-# Распечатываем общую инфу о модели и картинку рисуем
-model.summary()
-# почему нельзя было сразу сохранять в отдельную директорию?
-plot_model(model, to_file="./visualization/model_CONCAT_COMBINED.png", show_shapes=True)
-print("hey")
-
-# Вот как-то это всё надо теперь трейнить.
-
-model.compile(optimizer="adam", loss="mean_squared_error", metrics=["mse"])
-
-model.fit([x_train, y_train], y_train, batch_size=200, epochs=30, verbose=1, shuffle=False)
-print("\nwtf???\n")
-predicted_stuff = model.predict([x_test, y_test])
-print("Something got predicted.")
-print("Length of predicted stuff: {}".format(len(predicted_stuff)))
-print("Length of test stuff: {}".format(len(x_test)))
-
-print("First y from test file: {}".format(y_test[0]))
-print("\nFirst y from predicted file: {}".format(predicted_stuff[0]))
-
-print("\nSecond y from test file: {}".format(y_test[100]))
-print("\nSecond y from predicted file: {}".format(predicted_stuff[100]))
-
-print("\nThird y from test file: {}".format(y_test[2347]))
-print("\nThird y from predicted file: {}".format(predicted_stuff[2347]))
-
-# data wrangling to convert first prediction's data from scientific to decimal notation
-# first_predicted_y = predicted_stuff[0]
-# converted_predicted_y = []
-
-# for number in first_predicted_y:
-# 	converted_predicted_y.append(float(number))
+	# Если на предыдущих этапах всё было ок, вернуть модель.
+	return model
