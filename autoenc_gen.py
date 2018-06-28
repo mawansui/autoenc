@@ -44,29 +44,46 @@ def autoencoder_generator(number_of_inputs, inputs_dimensions, first_layer,
 							 loss, metrics)
 	
 	# Если у автоэнкодера два входа,
-	else:
+	elif number_of_inputs == 2:
 		# и если в главную функцию (эту) был передан дополнительный параметр
 		# output_dimension, обязательный для создания автоэнкодера с двумя входами,
+		# # а concatenate_axis, если что, необязательный, для его есть дефолтное
+		# # значение
 		if 'output_dimension' in kwargs:
 			# то вытащить из аргументов главной функции значение, переданное в
 			# output_dimension
 			output_dimension = kwargs.get('output_dimension')
-			# и передать его вместе со всеми остальными значениями во внешнюю 
+			# заодно извлечь значение оси сложения слоёв, а если его не было, то
+			# передать единицу (дефолтную)
+			concatenate_axis = kwargs.get('concatenate_axis', 1)
+			# и передать это всё вместе со всеми остальными значениями во внешнюю 
 			# функцию double_inputs(), которая создаст модель автоэнкодера с
 			# двумя входами, которую затем запишем в переменную model
 			model = double_inputs(inputs_dimensions, output_dimension, first_layer, 
-								  scale_factor, depth_factor, activation, 
-								  optimizer, loss, metrics)
+								  concatenate_axis, scale_factor, depth_factor, 
+								  activation, optimizer, loss, metrics)
 		
 		# Но если в главную функцию не был передан дополнительный обязательный 
 		# параметр output_dimension, то надо поднять ошибку – без него модель
 		# не создать.
 		else:
-			raise ValueError("Не указана размерность выхода для автоэнкодера с двумя входами!")
+			raise ValueError("Не указана размерность выхода для автоэнкодера "
+							 "с двумя входами!")
+	else:
+		raise ValueError("number_of_inputs может быть только 1 или 2. "
+						 "Передано: {}".format(number_of_inputs))
 
 	# Если на предыдущих этапах всё было ок, вернуть модель.
 	return model
 
-new_model = autoencoder_generator(number_of_inputs=1, inputs_dimensions=42, first_layer=100, 
-						  scale_factor=2, depth_factor=3, activation="relu", optimizer="adam", 
-						  loss="mean_squared_error", metrics=["mse"])
+new_model = autoencoder_generator(number_of_inputs=2, 
+								  inputs_dimensions=[400, 42], 
+								  output_dimension=42,
+								  first_layer=256,
+								  concatenate_axis=0, 
+								  scale_factor=2, 
+								  depth_factor=5, 
+								  activation="relu", 
+								  optimizer="adam", 
+								  loss="mean_squared_error", 
+								  metrics=["mse"])

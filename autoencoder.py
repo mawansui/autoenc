@@ -33,9 +33,12 @@ with open('./data/x_train.pickle', 'rb') as x_train_file, \
 fragments_input = Input(shape=(np.shape(x_train[1])))
 conditions_input = Input(shape=(np.shape(y_train[1])))
 
+# NEW: попробуем сложить входы и потом сделать автоэнкодер последовательный
+comdined_input = Concatenate(axis=-1)([fragments_input, conditions_input])
+
 # После каждого входного слоя идёт слой с 64 нейронами - типа скрытые слои
-hidden_layer_1 = Dense(128, activation="relu")(fragments_input)
-hidden_layer_2 = Dense(128, activation="relu")(conditions_input)
+# hidden_layer_1 = Dense(128, activation="relu")(fragments_input)
+# hidden_layer_2 = Dense(128, activation="relu")(conditions_input)
 
 # Потом складываются скрытые слои в один общий скрытый слой.
 # Причем складывать можно только слои с одинаковым числом нейронов.
@@ -43,10 +46,11 @@ hidden_layer_2 = Dense(128, activation="relu")(conditions_input)
 # Лучше использовать Concatenate – значительно уменьшается функция ошибки
 # и вообще как-то по архитектуре сети правильнее.
 # Ну, я так изначально и хотел короче, Add() что-то я так и не понял, что делает
-added_hidden_layers = Concatenate(axis=-1)([hidden_layer_1, hidden_layer_2])
+added_hidden_layers = Concatenate(axis=-1)([hidden_layer_1, hidden_layer_2]) # !!!!
 
 # Потом просто добавляю скрытых слоёв по вкусу
-more_hidden_layers = Dense(128, activation="relu")(added_hidden_layers)
+more_hidden_layers = Dense(256, activation="relu")(comdined_input)
+more_hidden_layers = Dense(128, activation="relu")(more_hidden_layers)
 more_hidden_layers = Dense(64, activation="relu")(more_hidden_layers)
 more_hidden_layers = Dense(128, activation="relu")(more_hidden_layers)
 more_hidden_layers = Dense(256, activation="relu")(more_hidden_layers)
@@ -61,7 +65,8 @@ model = Model(inputs=[fragments_input, conditions_input], outputs=output_layer)
 
 # Распечатываем общую инфу о модели и картинку рисуем
 model.summary()
-plot_model(model, to_file="modelplot_256_and_128.png", show_shapes=True)
+# почему нельзя было сразу сохранять в отдельную директорию?
+plot_model(model, to_file="./visualization/model_CONCAT_COMBINED.png", show_shapes=True)
 print("hey")
 
 # Вот как-то это всё надо теперь трейнить.

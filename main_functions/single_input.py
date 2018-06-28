@@ -1,11 +1,11 @@
-import numpy as np
 from keras.models import Model
-from keras.layers import Input, Dense, Activation, Add, Concatenate
+from keras.layers import Input, Dense
 # custom stuff imports
 from .max_depth_factor import max_depth_factor
 from .get_layer_sizes import get_layer_sizes
 
 # constants
+# TODO: put in separate file for clarity
 all_available_activation_functions = ["softmax", "elu", "selu", "softplus", 
 									  "softsign", "relu", "tanh", "sigmoid", 
 									  "hard_sigmoid", "linear"]
